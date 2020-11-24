@@ -1,0 +1,9 @@
+HTTP/1.1 408 Request timeout
+Content-Type: text/html; charset=iso-8859-1
+Cache-Control: no-cache
+Connection: close
+Proxy-Connection: close
+
+<html><head><title>408 Request Timeout</title></head>
+<body><h2>408 Request timeout</h2>
+</body></html>
