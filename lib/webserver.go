@@ -36,19 +36,19 @@ var network_template string = `<html>
     width: 70%;
   }
   </style>
-  <h1>Jump Host: {{ .Me.Name }} </h1>
-  <div>This is an instance of I2PJump, an I2P Site which specializes in registering
+  <h1>I2PJump Host: {{ .Me.Name }} </h1>
+  <div>This is an instance of I2PI2PJump, an I2P Site which specializes in registering
   and distributing human-readble hostnames across the I2P network. It is designed to
   be simple to run and extremely stable, but also has some unique features that make
   it a little different than other jump hosts.</div></br>
-  <div>For one thing, I2PJump is nearly zero-configuration to get running. There is no
+  <div>For one thing, I2PI2PJump is nearly zero-configuration to get running. There is no
   complicated setting up tunnels. If you want to run a jump service, just running the
   executable will result in a working deployment. It uses SAM to set up it's own tunnels
   without the intervention of the user. This makes it extremely easy to host your own.</div></br>
-  <div>Besides that, I2PJump has features for sharing addresses from other jump services.
+  <div>Besides that, I2PI2PJump has features for sharing addresses from other jump services.
   It can collate multiple hosts.txt files from many sources, and distribute them as a
   secondary <code>hosts.txt</code> file called "<code>peer-hosts.txt<code>," enabling
-  networks of jump operators to provide eachother with redundancy. I2PJump servers also
+  networks of jump operators to provide eachother with redundancy. I2PI2PJump servers also
   accept a single "Announce" daily from other services that want to publicize themselves.
   </div></br>
 
@@ -68,7 +68,7 @@ var network_template string = `<html>
         </ul>
       </li>
     </ul>
-    <h3>Jump Peers</h3>
+    <h3>I2PJump Peers</h3>
     <div>
     </div>
     <div>
@@ -83,11 +83,11 @@ var network_template string = `<html>
       To announce a site, send a <code>POST<code> request to http://{{ .I2PAddr.Base32 }}/announce
       with the body: <pre><code>
       host_name=$NAME_OF_YOUR_SITE
-      host_host=$ADDRESS_OF_YOUR_CHOICE
+      host_host=$PROTOCOL_SCHEME$ADDRESS_OF_YOUR_CHOICE
       </code></pre>
     </div>
     <div>
-    {{range $index, $element := .Pals}} {{$index}} {{$element.Name}} <a href="{{$element.MyURL}}">{{$element.MyURL}}</a> <a href="peer-{{$element.Name}}-hosts.txt"> Mirror hosts.txt </a> </br>  {{else}} This server is not configured to mirror any peer addresses. {{end}}
+    {{range $index, $element := .Pals}} <span>{{$element}}</span> <a href="{{$index}}">{{$index}}</a> {{else}} No one has announced a peer address yet. {{end}}
     </div>
   </div>
 `
@@ -96,7 +96,7 @@ var server_template string = `
   <div>
     <h2>Hostname Registration</h2>
     <div>It is possible to register a human-readble name for your I2P site here. Simply fill
-    out the small form below. The administrator of a Jump Service always has the right to
+    out the small form below. The administrator of a I2PJump Service always has the right to
     decline to register your human-readable name at their service. I've gone to the trouble
     of making it easy to host a jump service, so if you have a problem with it, go host your
     own.</div></br>
@@ -120,9 +120,9 @@ var ops_template string = `
 var default_template string = network_template + server_template + ops_template
 
 type WebServer struct {
-	Me        *Jump
-	Queue     *Jump
-	Peers     []*Jump
+	Me        *I2PJump
+	Queue     *I2PJump
+	Peers     []*I2PJump
 	Pals      map[string]string
 	Templates map[string]string
 	KeysPath  string
@@ -223,8 +223,8 @@ func NewWebServer(name, samaddr, keyspath, hostsfile string, peerslist []string,
 	var e error
 	ws.I2PAddr = addr
 	log.Println(ws.Base32())
-	ws.Me, e = NewJump(hostsfile, samaddr, name, "")
-	ws.Queue, e = NewJump(name+"-queue.txt", samaddr, name+"-queue", "")
+	ws.Me, e = NewI2PJump(hostsfile, samaddr, name, "")
+	ws.Queue, e = NewI2PJump(name+"-queue.txt", samaddr, name+"-queue", "")
 	ws.Templates = make(map[string]string)
 	ws.Pals = make(map[string]string)
 	ws.Templates["en"] = default_template
@@ -235,16 +235,18 @@ func NewWebServer(name, samaddr, keyspath, hostsfile string, peerslist []string,
 	for _, v := range peerslist {
 		V := strings.SplitN(v, "=", 2)
 		if len(V) == 2 {
-			peer, e := NewJump(V[0]+".txt", samaddr, V[0], V[1])
+			peer, e := NewI2PJump(V[0]+".txt", samaddr, V[0], V[1])
 			if e != nil {
 				return nil, e
 			}
-			e = peer.Fetch()
-			if e != nil {
-			  log.Printf("Error fetching peer hosts.txt: %s %s", peer.Name, e.Error())
-				return nil, e
-			}
-			ws.Peers = append(ws.Peers, peer)
+			go func() {
+				e = peer.Fetch()
+				if e != nil {
+					log.Printf("Error fetching peer hosts.txt: %s %s", peer.Name, e.Error())
+					//					return nil, e
+				}
+				ws.Peers = append(ws.Peers, peer)
+			}()
 		}
 	}
 	return &ws, nil
@@ -260,15 +262,19 @@ type I2PServer struct {
 }
 
 func (is *I2PServer) Serve() error {
-	limiter := tollbooth.NewLimiter(.0000115, nil)
+	limiter := tollbooth.NewLimiter(.0000230, nil)
 	limiter.SetOnLimitReached(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/hostadd" {
-			if r.URL.Path != "/announce" {
-				is.WebServer.ServeHTTP(w, r)
-			}
+		log.Println("LIMITER", r.URL.Path)
+		switch r.URL.Path {
+		case "/hostadd":
+		case "/announce":
+		default:
+			is.WebServer.ServeHTTP(w, r)
 		}
 	})
-	return http.Serve(is.StreamListener, nosurf.New(tollbooth.LimitFuncHandler(limiter, is.WebServer.ServeHTTP)))
+	configuredHandler := nosurf.New(tollbooth.LimitFuncHandler(limiter, is.WebServer.ServeHTTP))
+	configuredHandler.ExemptPath("/announce")
+	return http.Serve(is.StreamListener, configuredHandler)
 }
 
 func NewI2PServer(name, samaddr, keyspath, hostsfile string, peerslist []string) (*I2PServer, error) {

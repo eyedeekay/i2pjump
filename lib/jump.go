@@ -9,15 +9,15 @@ import (
 	"github.com/eyedeekay/sam3/helper"
 )
 
-type Jump struct {
+type I2PJump struct {
 	*HostsTxt
 	SAMAddr string
 	Name    string
 	MyURL   *url.URL
 }
 
-func NewJump(hostFile, samAddr, name, jumpUrl string) (*Jump, error) {
-	var j Jump
+func NewI2PJump(hostFile, samAddr, name, jumpUrl string) (*I2PJump, error) {
+	var j I2PJump
 	var e error
 	j.SAMAddr = samAddr
 	j.Name = name
@@ -32,7 +32,7 @@ func NewJump(hostFile, samAddr, name, jumpUrl string) (*Jump, error) {
 	return &j, nil
 }
 
-func (j *Jump) Fetch() error {
+func (j *I2PJump) Fetch() error {
 	session, err := sam.I2PStreamSession(j.Name, j.SAMAddr, "sam-"+j.Name+"-client")
 	if err != nil {
 		return err
@@ -49,11 +49,12 @@ func (j *Jump) Fetch() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("GOT: %s", bytes)
+	log.Printf("WRITING: %s", "peer-"+j.Name+"-hosts.txt")
 	err = ioutil.WriteFile("peer-"+j.Name+"-hosts.txt", bytes, 0644)
 	if err != nil {
 		return err
 	}
+	log.Printf("LOADING: %s", "peer-"+j.Name+"-hosts.txt")
 	j.HostsTxt, err = NewHostsTxt("peer-" + j.Name + "-hosts.txt")
 	if err != nil {
 		return err
