@@ -36,21 +36,36 @@ var network_template string = `<html>
     width: 70%;
   }
   </style>
-  <h1>I2PJump Host: {{ .Me.Name }} </h1>
-  <div>This is an instance of I2PI2PJump, an I2P Site which specializes in registering
+  <h1>Jump-Transparency Host: {{ .Me.Name }} </h1>
+  <div>This is an instance of Jump-Transparency, an I2P Site which specializes in registering
   and distributing human-readble hostnames across the I2P network. It is designed to
   be simple to run and extremely stable, but also has some unique features that make
   it a little different than other jump hosts.</div></br>
-  <div>For one thing, I2PI2PJump is nearly zero-configuration to get running. There is no
+  <div>For one thing, Jump-Transparency is nearly zero-configuration to get running. There is no
   complicated setting up tunnels. If you want to run a jump service, just running the
   executable will result in a working deployment. It uses SAM to set up it's own tunnels
   without the intervention of the user. This makes it extremely easy to host your own.</div></br>
-  <div>Besides that, I2PI2PJump has features for sharing addresses from other jump services.
+  <div>Besides that, Jump-Transparency has features for sharing addresses from other jump services.
   It can collate multiple hosts.txt files from many sources, and distribute them as a
   secondary <code>hosts.txt</code> file called "<code>peer-hosts.txt<code>," enabling
-  networks of jump operators to provide eachother with redundancy. I2PI2PJump servers also
+  networks of jump operators to provide eachother with redundancy. Jump-Transparency servers also
   accept a single "Announce" daily from other services that want to publicize themselves.
   </div></br>
+
+  <div>
+    <h2>Trust Chart</h2>
+    <div>The trust chart is an experimental feature. It takes all of the peers
+    and identifies whether they have the same hostnames in their address book.
+    It then compares the hostnames by base32 address, and determines whether they
+    agree with the hosts.txt file we use. It also displays what each service believes
+    the Base64 Destination is. Sometimes these differ due to the implementation
+    differences in name registries, even though they are actually the same
+    destination.
+    </div>
+    <ul>
+      <li><a href="http://{{ .I2PAddr.Base32 }}/trust"><b>Visit the Trust Chart:</b></a></li>
+    </ul>
+  </div>
 
   <div>
     <h2>Subscription URL's</h2>
@@ -68,7 +83,7 @@ var network_template string = `<html>
         </ul>
       </li>
     </ul>
-    <h3>I2PJump Peers</h3>
+    <h3>Jump-Transparency Peers</h3>
     <div>
     </div>
     <div>
@@ -96,7 +111,7 @@ var server_template string = `
   <div>
     <h2>Hostname Registration</h2>
     <div>It is possible to register a human-readble name for your I2P site here. Simply fill
-    out the small form below. The administrator of a I2PJump Service always has the right to
+    out the small form below. The administrator of a Jump-Transparency Service always has the right to
     decline to register your human-readable name at their service. I've gone to the trouble
     of making it easy to host a jump service, so if you have a problem with it, go host your
     own.</div></br>
@@ -127,6 +142,7 @@ type WebServer struct {
 	Templates map[string]string
 	KeysPath  string
 	Homepage  string
+	samaddr   string
 	I2PAddr   *i2pkeys.I2PAddr
 }
 
@@ -139,13 +155,113 @@ func (ws *WebServer) AgglomeratedHostsFile() []byte {
 	var unreturnable []byte
 	for _, v := range ws.Peers {
 		unreturnable = append(unreturnable, v.HostsFile()...)
-		returnable = []byte(strings.Replace(string(unreturnable), "\n", "", -1))
+		returnable = unreturnable //[]byte(strings.Replace(string(unreturnable), "\n", "", -1))
 	}
 	return returnable
 }
 
+func (ws *WebServer) TrustCheck(hostname string) (agrees map[string]bool, votes map[string]string, host string) {
+	myval, ok := ws.Me.ToMap()[hostname]
+	host = hostname
+	agrees = make(map[string]bool)
+	votes = make(map[string]string)
+	if ok {
+		for _, peer := range ws.Peers {
+			val, ok := peer.ToMap()[hostname]
+			if ok {
+				myaddr, err := i2pkeys.NewI2PAddrFromString(myval)
+				if err == nil {
+					valaddr, err := i2pkeys.NewI2PAddrFromString(myval)
+					if err == nil {
+						if valaddr.Base32() == myaddr.Base32() {
+							agrees[peer.Name] = true
+						} else {
+							agrees[peer.Name] = false
+						}
+						votes[peer.Name] = val
+					}
+				}
+			}
+		}
+	}
+	return
+}
+
+func (ws *WebServer) TrustCheckElement(agrees map[string]bool, votes map[string]string, hostname string) string {
+	var r string
+	if len(agrees) > 0 && len(votes) > 0 {
+		r += `<div class="server_` + hostname + `">`
+		r += `  <h1 class="server_` + hostname + `"> Server ` + hostname + `</h2>`
+		for peerindex, agree := range agrees {
+			r += `<div class="server_` + peerindex + `">`
+			r += `  <h2 class="server_` + peerindex + `"> Server ` + peerindex + `</h2>`
+
+			if agree {
+				r += `  <div class="server_` + peerindex + `">`
+				r += `    Agrees with us about the base32 destination`
+				r += `  </div>`
+			} else {
+				r += `  <div class="server_` + peerindex + `">`
+				r += `    Disagrees with us about the base32 destination`
+				r += `  </div>`
+			}
+			r += `  <div class="server_` + peerindex + `">`
+			r += `    Sees the base64 address as: ` + votes[peerindex]
+			r += `  </div>`
+			r += `</div>`
+		}
+		r += `</div>`
+	}
+	return r
+}
+
+func (ws *WebServer) TrustChart() string {
+	err := ioutil.WriteFile("all-known-hosts.txt", []byte(ws.AgglomeratedHostsFile()), 0644)
+	if err != nil {
+		return "Error rendering page, please contact the admin"
+	}
+	virtjump, err := NewI2PJump("all-known-hosts.txt", ws.samaddr, ws.I2PAddr.Base32(), "http://"+ws.I2PAddr.Base32()+"/peer-hosts.txt")
+	if err != nil {
+		return "Error rendering page, please contact the admin"
+	}
+	if virtjump != nil {
+		var ret string
+		ret += `<html>
+<head>
+</head>
+<body>
+  <style>
+  body {
+    font-family: monospace;
+    font-size: large;
+  }
+  b    {
+    color: black;
+  }
+  p    {
+    color: darkgrey;
+  }
+  input, textarea {
+    position: sticky;
+    left: 20%;
+    width: 70%;
+  }
+  </style>`
+		for host := range virtjump.ToMap() {
+			log.Println("Checking host:", host)
+			ret += ws.TrustCheckElement(ws.TrustCheck(host))
+		}
+		ret += `</body>
+</html>`
+		return ret
+	}
+	return "Trustchart closed"
+}
+
 func (ws WebServer) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
 	switch rq.URL.Path {
+	case "/trust":
+		rw.Write([]byte(ws.TrustChart()))
 	case "/hosts.txt":
 		rw.Write(ws.Me.HostsFile())
 	case "/peer-hosts.txt":
@@ -228,6 +344,7 @@ func NewWebServer(name, samaddr, keyspath, hostsfile string, peerslist []string,
 	ws.Templates = make(map[string]string)
 	ws.Pals = make(map[string]string)
 	ws.Templates["en"] = default_template
+	ws.samaddr = samaddr //"127.0.0.1:7656"
 	if e != nil {
 		return nil, e
 	}
@@ -262,17 +379,19 @@ type I2PServer struct {
 }
 
 func (is *I2PServer) Serve() error {
-	limiter := tollbooth.NewLimiter(.0000230, nil)
+	limiter := tollbooth.NewLimiter(1, nil)
+	//1,
 	limiter.SetOnLimitReached(func(w http.ResponseWriter, r *http.Request) {
 		log.Println("LIMITER", r.URL.Path)
 		switch r.URL.Path {
 		case "/hostadd":
 		case "/announce":
 		default:
-			is.WebServer.ServeHTTP(w, r)
+			log.Println("EXEMPTING LIMITER", r.URL.Path)
+			//			limiter
 		}
 	})
-	configuredHandler := nosurf.New(tollbooth.LimitFuncHandler(limiter, is.WebServer.ServeHTTP))
+	configuredHandler := nosurf.New(tollbooth.LimitHandler(limiter, is.WebServer))
 	configuredHandler.ExemptPath("/announce")
 	return http.Serve(is.StreamListener, configuredHandler)
 }

@@ -37,8 +37,13 @@ func (j *I2PJump) Fetch() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("DIALING: %s", j.MyURL.Host)
-	conn, err := session.Dial("i2p", j.MyURL.Host+":80")
+	log.Printf("looking up: %s", j.MyURL.Host)
+	hostname, err := session.Lookup(j.MyURL.Host)
+	if err != nil {
+		return err
+	}
+	log.Printf("DIALING: %s", hostname.Base32())
+	conn, err := session.DialI2P(hostname)
 	if err != nil {
 		return err
 	}
