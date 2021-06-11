@@ -5,8 +5,7 @@ import (
 	"log"
 	"strings"
 
-	//	"i2pgit.org/idk/jump-transparency/lib"
-	"github.com/eyedeekay/i2pjump/lib"
+	"i2pgit.org/idk/jump-transparency/lib"
 )
 
 var (

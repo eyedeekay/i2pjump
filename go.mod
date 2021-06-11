@@ -1,5 +1,4 @@
-module github.com/eyedeekay/i2pjump
-//module i2pgit.org/idk/jump-transparency
+module i2pgit.org/idk/jump-transparency
 
 go 1.15
 
