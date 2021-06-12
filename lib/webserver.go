@@ -198,13 +198,13 @@ func (ws *WebServer) TrustCheckElement(agrees map[string]bool, votes map[string]
 			r += `  <h2 class="server_` + peerindex + `"> Server ` + peerindex + `</h2>`
 
 			if agree {
-				r += `  <div class="server_` + peerindex + `">`
+				r += `  <h4 class="server_` + peerindex + `">`
 				r += `    Agrees with us about the base32 destination`
-				r += `  </div>`
+				r += `  </h4>`
 			} else {
-				r += `  <div class="server_` + peerindex + `">`
+				r += `  <h4 class="server_` + peerindex + `">`
 				r += `    Disagrees with us about the base32 destination`
-				r += `  </div>`
+				r += `  </h4>`
 			}
 			r += `  <div class="server_` + peerindex + `">`
 			r += `    Sees the base64 address as: ` + votes[peerindex]
@@ -401,7 +401,7 @@ func NewWebServer(name, samaddr, keyspath, hostsfile string, peerslist []string,
 			if e != nil {
 				return nil, e
 			}
-			secs := (i * 2)
+			secs := (i * 5)
 			log.Println("Sleeping", secs, "seconds")
 			go func() {
 				time.Sleep(time.Second * time.Duration(secs))
