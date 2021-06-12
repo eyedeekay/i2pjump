@@ -9,6 +9,7 @@ import (
 type Host struct {
 	Host        string
 	Destination string
+	Description string
 }
 
 func (h *Host) String() string {
@@ -27,6 +28,14 @@ func (ht *HostsTxt) ToMap() map[string]string {
 		}
 	}
 	return ht.hostMap
+}
+
+func (ht *HostsTxt) Append(host, dest, desc string) bool {
+	if _, ok := ht.ToMap()[host]; !ok {
+		ht.HostList = append(ht.HostList, Host{Host: host, Destination: dest, Description: desc})
+		return true
+	}
+	return false
 }
 
 func ReadHostsFile(file string) ([]string, error) {

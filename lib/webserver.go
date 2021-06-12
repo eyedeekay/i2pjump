@@ -141,6 +141,7 @@ type WebServer struct {
 	Peers     []*I2PJump
 	Pals      map[string]string
 	Templates map[string]string
+	limited   map[string]time.Time
 	KeysPath  string
 	Homepage  string
 	samaddr   string
@@ -425,9 +426,20 @@ func (ws WebServer) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
 			rw.Write([]byte(ws.TrustChartSinglePage(addrpair[len(addrpair)-1])))
 			//			}
 		} else if strings.HasPrefix(rq.URL.Path, "/hostadd") {
+			if rate, ok := ws.limited[rq.RemoteAddr]; ok {
+				t := time.Now()
+				elapsed := t.Sub(rate)
+				if elapsed < time.Hour*12 {
+					return
+				}
+			}
 			hostname := rq.FormValue("host_name")
 			destination := rq.FormValue("host_destination")
 			description := rq.FormValue("host_description")
+			added := ws.Queue.Append(hostname, destination, description)
+			if added {
+				ws.limited[rq.RemoteAddr] = time.Now()
+			}
 			log.Printf("client attempted to register: %s %s %s", hostname, destination, description)
 		} else {
 			rw.Header().Add("Content-Type", "text/html")
@@ -463,6 +475,7 @@ func NewWebServer(name, samaddr, keyspath, hostsfile string, peerslist []string,
 	ws.Queue, e = NewI2PJump(name+"-queue.txt", samaddr, name+"-queue", "")
 	ws.Templates = make(map[string]string)
 	ws.Pals = make(map[string]string)
+	ws.limited = make(map[string]time.Time)
 	ws.Templates["en"] = default_template
 	ws.samaddr = samaddr //"127.0.0.1:7656"
 	if e != nil {
