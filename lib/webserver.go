@@ -168,10 +168,10 @@ func (ws *WebServer) TrustCheck(hostname string) (agrees map[string]int, votes m
 	agrees = make(map[string]int)
 	votes = make(map[string]string)
 	if ok {
+		myaddr, err := i2pkeys.NewI2PAddrFromString(myval)
 		for _, peer := range ws.Peers {
 			val, ok := peer.ToMap()[hostname]
 			if ok {
-				myaddr, err := i2pkeys.NewI2PAddrFromString(myval)
 				if err == nil {
 					valaddr, err := i2pkeys.NewI2PAddrFromString(val)
 					if err == nil {
@@ -183,6 +183,12 @@ func (ws *WebServer) TrustCheck(hostname string) (agrees map[string]int, votes m
 						votes[peer.Name] = valaddr.String()
 					}
 				}
+			}
+		}
+		if err == nil {
+			if len(agrees) == 0 || len(votes) == 0 {
+				agrees[ws.Me.Name] = -2
+				votes[ws.Me.Name] = myaddr.String()
 			}
 		}
 	} else {
@@ -220,6 +226,10 @@ func (ws *WebServer) TrustCheckElement(agrees map[string]int, votes map[string]s
 			} else if agree == -1 {
 				r += `  <h4 class="server_` + peerindex + `">`
 				r += `    Has a record  of this host, but we do not.`
+				r += `  </h4>`
+			} else if agree == -2 {
+				r += `  <h4 class="server_` + peerindex + `">`
+				r += `    Only we have a record of this host.`
 				r += `  </h4>`
 			}
 			r += `  <div class="server_` + peerindex + `">`
