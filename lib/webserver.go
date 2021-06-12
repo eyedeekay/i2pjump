@@ -144,6 +144,7 @@ type WebServer struct {
 	KeysPath  string
 	Homepage  string
 	samaddr   string
+	rc        bool
 	I2PAddr   *i2pkeys.I2PAddr
 }
 
@@ -263,11 +264,15 @@ func (ws WebServer) CheckLoop() error {
 	time.Sleep(time.Minute * 5)
 	log.Println("Initiating re-check cycles")
 	for {
-		ws.Recheck(60)
+		ws.Recheck(3600)
 	}
 	return nil
 }
 func (ws WebServer) Recheck(delay int) error {
+	if ws.rc {
+		return nil
+	}
+	ws.rc = true
 	for _, peer := range ws.Peers {
 		e := peer.Fetch()
 		if e != nil {
@@ -275,8 +280,9 @@ func (ws WebServer) Recheck(delay int) error {
 			//					return nil, e
 		}
 		ws.Peers = append(ws.Peers, peer)
-		time.Sleep(time.Minute * time.Duration(delay))
+		time.Sleep(time.Second * time.Duration(delay))
 	}
+	ws.rc = false
 	return nil
 }
 
@@ -298,7 +304,7 @@ func (ws WebServer) ValidateHostAnnounce(hosthost string) error {
 func (ws WebServer) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
 	switch rq.URL.Path {
 	case "/recheck":
-		err := ws.Recheck(1)
+		err := ws.Recheck(10)
 		if err != nil {
 			log.Println("Force recheck error", err)
 		}
