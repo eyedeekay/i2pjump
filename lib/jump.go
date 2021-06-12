@@ -59,11 +59,13 @@ func (j *I2PJump) Fetch() error {
 	if err != nil {
 		return err
 	}
-	if strings.HasPrefix(string(bytes), "HTTP/1.1 404 Not Found") {
+	if strings.Contains(string(bytes), "404 Not Found") {
 		return fmt.Errorf("Fetch error 404", j.Name)
 	}
-
 	index := strings.Index(string(bytes), literal)
+	if index == -1 {
+		index = 0
+	}
 	bytes = bytes[index:]
 	log.Printf("WRITING: %s", "peer-"+j.Name+"-hosts.txt")
 	err = ioutil.WriteFile("peer-"+j.Name+"-hosts.txt", bytes, 0644)
