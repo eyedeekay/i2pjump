@@ -33,9 +33,7 @@ func NewI2PJump(hostFile, samAddr, name, jumpUrl string) (*I2PJump, error) {
 	return &j, nil
 }
 
-var literal = `
-
-`
+var literal = "\n\n"
 
 func (j *I2PJump) Fetch() error {
 	session, err := sam.I2PStreamSession(j.Name, j.SAMAddr, "sam-"+j.Name+"-client")
@@ -62,7 +60,7 @@ func (j *I2PJump) Fetch() error {
 	if strings.Contains(string(bytes), "404 Not Found") {
 		return fmt.Errorf("Fetch error 404", j.Name)
 	}
-	index := strings.Index(string(bytes), literal)
+	index := strings.Index(string(bytes), "")
 	if index == -1 {
 		index = 0
 	}

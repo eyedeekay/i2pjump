@@ -14,7 +14,7 @@ var (
 	samaddr   = flag.String("samaddr", "127.0.0.1:7656", "SAM address to connect to")
 	keyspath  = flag.String("keyspath", "keys", "Where to store the long-term keys for your hidden service")
 	hostsfile = flag.String("hostsfile", "hosts.txt", "Where to store the hosts file")
-	peers     = flag.String("peers", "root=http://i2p-projekt.i2p/hosts.txt,identiguy=http://identiguy.i2p/hosts.txt,notbob=http://notbob.i2p/hosts.txt,inr=http://inr.i2p/alive-hosts.txt,isitup=http://isitup.i2p/hosts.txt,reg=http://reg.i2p/hosts.txt", "Comma-separated list of the other I2P jump services in the form \"peerone=http://peerone.i2p/hosts.txt,peertwo=http://peerone.i2p/hosts.txt\"")
+	peers     = flag.String("peers", "root=http://i2p-projekt.i2p/hosts.txt,identiguy=http://identiguy.i2p/hosts.txt,notbob=http://nytzrhrjjfsutowojvxi7hphesskpqqr65wpistz6wa7cpajhp7a.b32.i2p//hosts.txt,inr=http://inr.i2p/alive-hosts.txt,isitup=http://isitup.i2p/hosts.txt,reg=http://reg.i2p/hosts.txt", "Comma-separated list of the other I2P jump services in the form \"peerone=http://peerone.i2p/hosts.txt,peertwo=http://peerone.i2p/hosts.txt\"")
 	announce  = flag.String("announce", "", "Comma-separated list of other Jump-Transparency jump services to \"announce\" ourselves to for publicity purposes.")
 )
 

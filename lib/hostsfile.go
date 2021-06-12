@@ -59,7 +59,7 @@ func NewHostsTxt(file string) (*HostsTxt, error) {
 		return nil, err
 	}
 	for _, v := range hosts {
-		spl := strings.SplitN(v, "=", 2)
+		spl := strings.Split(v, "=")
 		if len(spl) == 2 {
 			ht.HostList = append(ht.HostList, Host{Host: spl[0], Destination: spl[1]})
 		}

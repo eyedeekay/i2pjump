@@ -162,10 +162,10 @@ func (ws *WebServer) AgglomeratedHostsFile() []byte {
 	return returnable
 }
 
-func (ws *WebServer) TrustCheck(hostname string) (agrees map[string]bool, votes map[string]string, host string) {
+func (ws *WebServer) TrustCheck(hostname string) (agrees map[string]int, votes map[string]string, host string) {
 	myval, ok := ws.Me.ToMap()[hostname]
 	host = hostname
-	agrees = make(map[string]bool)
+	agrees = make(map[string]int)
 	votes = make(map[string]string)
 	if ok {
 		for _, peer := range ws.Peers {
@@ -173,15 +173,26 @@ func (ws *WebServer) TrustCheck(hostname string) (agrees map[string]bool, votes 
 			if ok {
 				myaddr, err := i2pkeys.NewI2PAddrFromString(myval)
 				if err == nil {
-					valaddr, err := i2pkeys.NewI2PAddrFromString(myval)
+					valaddr, err := i2pkeys.NewI2PAddrFromString(val)
 					if err == nil {
 						if valaddr.Base32() == myaddr.Base32() {
-							agrees[peer.Name] = true
+							agrees[peer.Name] = 1
 						} else {
-							agrees[peer.Name] = false
+							agrees[peer.Name] = 0
 						}
-						votes[peer.Name] = val
+						votes[peer.Name] = valaddr.String()
 					}
+				}
+			}
+		}
+	} else {
+		for _, peer := range ws.Peers {
+			val, ok := peer.ToMap()[hostname]
+			if ok {
+				valaddr, err := i2pkeys.NewI2PAddrFromString(val)
+				if err == nil {
+					agrees[peer.Name] = -1
+					votes[peer.Name] = valaddr.String()
 				}
 			}
 		}
@@ -189,7 +200,7 @@ func (ws *WebServer) TrustCheck(hostname string) (agrees map[string]bool, votes 
 	return
 }
 
-func (ws *WebServer) TrustCheckElement(agrees map[string]bool, votes map[string]string, hostname string) string {
+func (ws *WebServer) TrustCheckElement(agrees map[string]int, votes map[string]string, hostname string) string {
 	var r string
 	if len(agrees) > 0 && len(votes) > 0 {
 		r += `<div class="server_` + hostname + `">`
@@ -198,13 +209,17 @@ func (ws *WebServer) TrustCheckElement(agrees map[string]bool, votes map[string]
 			r += `<div class="server_` + peerindex + `">`
 			r += `  <h2 class="server_` + peerindex + `"> Server ` + peerindex + `</h2>`
 
-			if agree {
+			if agree == 1 {
 				r += `  <h4 class="server_` + peerindex + `">`
 				r += `    Agrees with us about the base32 destination`
 				r += `  </h4>`
-			} else {
+			} else if agree == 0 {
 				r += `  <h4 class="server_` + peerindex + `">`
 				r += `    Disagrees with us about the base32 destination`
+				r += `  </h4>`
+			} else if agree == -1 {
+				r += `  <h4 class="server_` + peerindex + `">`
+				r += `    Has a record  of this host, but we do not.`
 				r += `  </h4>`
 			}
 			r += `  <div class="server_` + peerindex + `">`
@@ -253,6 +268,46 @@ func (ws *WebServer) TrustChart() string {
 			log.Println("Checking host:", host)
 			ret += ws.TrustCheckElement(ws.TrustCheck(host))
 		}
+		ret += `</body>
+</html>`
+		return ret
+	}
+	return "Trustchart closed"
+}
+
+func (ws *WebServer) TrustChartSinglePage(hostname string) string {
+	err := ioutil.WriteFile("all-known-hosts.txt", []byte(ws.AgglomeratedHostsFile()), 0644)
+	if err != nil {
+		return "Error rendering page, please contact the admin"
+	}
+	virtjump, err := NewI2PJump("all-known-hosts.txt", ws.samaddr, ws.I2PAddr.Base32(), "http://"+ws.I2PAddr.Base32()+"/peer-hosts.txt")
+	if err != nil {
+		return "Error rendering page, please contact the admin"
+	}
+	if virtjump != nil {
+		var ret string
+		ret += `<html>
+<head>
+</head>
+<body>
+  <style>
+  body {
+    font-family: monospace;
+    font-size: large;
+  }
+  b    {
+    color: black;
+  }
+  p    {
+    color: darkgrey;
+  }
+  input, textarea {
+    position: sticky;
+    left: 20%;
+    width: 70%;
+  }
+  </style>`
+		ret += ws.TrustCheckElement(ws.TrustCheck(hostname))
 		ret += `</body>
 </html>`
 		return ret
@@ -352,6 +407,13 @@ func (ws WebServer) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
 					http.Redirect(rw, rq, "http://"+domain+"/?i2padddresshelper"+entry, 301)
 				}
 			}
+		} else if strings.HasPrefix(rq.URL.Path, "/trustrecord") {
+			addrpair := strings.SplitN(rq.URL.Path, `/`, 3)
+			log.Println(addrpair[len(addrpair)-1], len(addrpair))
+			//			if len(addrpair) == 3 {
+			//				domain := strings.SplitN(addrpair[1], `.i2p`, 2)[0]
+			rw.Write([]byte(ws.TrustChartSinglePage(addrpair[len(addrpair)-1])))
+			//			}
 		} else if strings.HasPrefix(rq.URL.Path, "/hostadd") {
 			hostname := rq.FormValue("host_name")
 			destination := rq.FormValue("host_destination")
