@@ -304,10 +304,7 @@ func (ws WebServer) ValidateHostAnnounce(hosthost string) error {
 func (ws WebServer) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
 	switch rq.URL.Path {
 	case "/recheck":
-		err := ws.Recheck(10)
-		if err != nil {
-			log.Println("Force recheck error", err)
-		}
+		go ws.Recheck(10)
 		rw.Write([]byte("Forcing recheck of all peers"))
 	case "/trust":
 		rw.Write([]byte(ws.TrustChart()))
@@ -407,7 +404,7 @@ func NewWebServer(name, samaddr, keyspath, hostsfile string, peerslist []string,
 			if e != nil {
 				return nil, e
 			}
-			secs := (i * 5)
+			secs := (i * 3)
 			log.Println("Sleeping", secs, "seconds")
 			go func() {
 				time.Sleep(time.Second * time.Duration(secs))
