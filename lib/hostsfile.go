@@ -61,7 +61,9 @@ func NewHostsTxt(file string) (*HostsTxt, error) {
 	for _, v := range hosts {
 		spl := strings.SplitN(v, "=", 2)
 		if len(spl) == 2 {
-			ht.HostList = append(ht.HostList, Host{Host: spl[0], Destination: spl[1]})
+			if strings.HasSuffix(spl[0], ".i2p") {
+				ht.HostList = append(ht.HostList, Host{Host: spl[0], Destination: spl[1]})
+			}
 		}
 	}
 	return &ht, nil
