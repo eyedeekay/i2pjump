@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/didip/tollbooth"
 	"github.com/eyedeekay/sam3"
@@ -258,6 +259,23 @@ func (ws *WebServer) TrustChart() string {
 	return "Trustchart closed"
 }
 
+func (ws WebServer) Recheck() error {
+	time.Sleep(time.Minute * 5)
+	log.Println("Initiating re-check cycles")
+	for {
+		for _, peer := range ws.Peers {
+			e := peer.Fetch()
+			if e != nil {
+				log.Printf("Error fetching peer hosts.txt: %s %s", peer.Name, e.Error())
+				//					return nil, e
+			}
+			ws.Peers = append(ws.Peers, peer)
+			time.Sleep(time.Hour)
+		}
+	}
+	return nil
+}
+
 func (ws WebServer) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
 	switch rq.URL.Path {
 	case "/trust":
@@ -365,7 +383,9 @@ func NewWebServer(name, samaddr, keyspath, hostsfile string, peerslist []string,
 				ws.Peers = append(ws.Peers, peer)
 			}()
 		}
+		time.Sleep(time.Second * 5)
 	}
+	go ws.Recheck()
 	return &ws, nil
 }
 
