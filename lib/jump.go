@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/url"
+	"strings"
 
 	"github.com/eyedeekay/sam3/helper"
 )
@@ -32,6 +33,10 @@ func NewI2PJump(hostFile, samAddr, name, jumpUrl string) (*I2PJump, error) {
 	return &j, nil
 }
 
+var literal = `
+
+`
+
 func (j *I2PJump) Fetch() error {
 	session, err := sam.I2PStreamSession(j.Name, j.SAMAddr, "sam-"+j.Name+"-client")
 	if err != nil {
@@ -54,6 +59,12 @@ func (j *I2PJump) Fetch() error {
 	if err != nil {
 		return err
 	}
+	if strings.HasPrefix(string(bytes), "HTTP/1.1 404 Not Found") {
+		return fmt.Errorf("Fetch error 404", j.Name)
+	}
+
+	index := strings.Index(string(bytes), literal)
+	bytes = bytes[index:]
 	log.Printf("WRITING: %s", "peer-"+j.Name+"-hosts.txt")
 	err = ioutil.WriteFile("peer-"+j.Name+"-hosts.txt", bytes, 0644)
 	if err != nil {

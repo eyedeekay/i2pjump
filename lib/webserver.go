@@ -192,7 +192,7 @@ func (ws *WebServer) TrustCheckElement(agrees map[string]bool, votes map[string]
 	var r string
 	if len(agrees) > 0 && len(votes) > 0 {
 		r += `<div class="server_` + hostname + `">`
-		r += `  <h1 class="server_` + hostname + `"> Server ` + hostname + `</h2>`
+		r += `  <h1 class="server_` + hostname + `"> Hostname ` + hostname + `</h2>`
 		for peerindex, agree := range agrees {
 			r += `<div class="server_` + peerindex + `">`
 			r += `  <h2 class="server_` + peerindex + `"> Server ` + peerindex + `</h2>`
@@ -259,25 +259,50 @@ func (ws *WebServer) TrustChart() string {
 	return "Trustchart closed"
 }
 
-func (ws WebServer) Recheck() error {
+func (ws WebServer) CheckLoop() error {
 	time.Sleep(time.Minute * 5)
 	log.Println("Initiating re-check cycles")
 	for {
-		for _, peer := range ws.Peers {
-			e := peer.Fetch()
-			if e != nil {
-				log.Printf("Error fetching peer hosts.txt: %s %s", peer.Name, e.Error())
-				//					return nil, e
-			}
-			ws.Peers = append(ws.Peers, peer)
-			time.Sleep(time.Hour)
-		}
+		ws.Recheck(60)
 	}
+	return nil
+}
+func (ws WebServer) Recheck(delay int) error {
+	for _, peer := range ws.Peers {
+		e := peer.Fetch()
+		if e != nil {
+			log.Printf("Error fetching peer hosts.txt: %s %s", peer.Name, e.Error())
+			//					return nil, e
+		}
+		ws.Peers = append(ws.Peers, peer)
+		time.Sleep(time.Minute * time.Duration(delay))
+	}
+	return nil
+}
+
+func (ws WebServer) ValidateHostAnnounce(hosthost string) error {
+	session, err := sam.I2PStreamSession("eph", ws.samaddr, "sam-"+"validator-client")
+	if err != nil {
+		return err
+	}
+	log.Printf("looking up: %s", hosthost)
+	hostname, err := session.Lookup(hosthost)
+	if err != nil {
+		return err
+	}
+	log.Println("validated host", hostname)
+	session.Close()
 	return nil
 }
 
 func (ws WebServer) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
 	switch rq.URL.Path {
+	case "/recheck":
+		err := ws.Recheck(1)
+		if err != nil {
+			log.Println("Force recheck error", err)
+		}
+		rw.Write([]byte("Forcing recheck of all peers"))
 	case "/trust":
 		rw.Write([]byte(ws.TrustChart()))
 	case "/hosts.txt":
@@ -287,7 +312,9 @@ func (ws WebServer) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
 	case "/announce":
 		hostname := rq.FormValue("host_name")
 		base32 := rq.FormValue("host_host")
-		ws.Pals[base32] = hostname
+		if ws.ValidateHostAnnounce(base32) == nil {
+			ws.Pals[base32] = hostname
+		}
 	default:
 		if strings.HasPrefix(rq.URL.Path, "/peer-") {
 			if strings.HasSuffix(rq.URL.Path, "-hosts.txt") {
@@ -367,14 +394,17 @@ func NewWebServer(name, samaddr, keyspath, hostsfile string, peerslist []string,
 		return nil, e
 	}
 
-	for _, v := range peerslist {
+	for i, v := range peerslist {
 		V := strings.SplitN(v, "=", 2)
 		if len(V) == 2 {
 			peer, e := NewI2PJump(V[0]+".txt", samaddr, V[0], V[1])
 			if e != nil {
 				return nil, e
 			}
+			secs := (i * 2)
+			log.Println("Sleeping", secs, "seconds")
 			go func() {
+				time.Sleep(time.Second * time.Duration(secs))
 				e = peer.Fetch()
 				if e != nil {
 					log.Printf("Error fetching peer hosts.txt: %s %s", peer.Name, e.Error())
@@ -383,9 +413,9 @@ func NewWebServer(name, samaddr, keyspath, hostsfile string, peerslist []string,
 				ws.Peers = append(ws.Peers, peer)
 			}()
 		}
-		time.Sleep(time.Second * 5)
+
 	}
-	go ws.Recheck()
+	go ws.CheckLoop()
 	return &ws, nil
 }
 
